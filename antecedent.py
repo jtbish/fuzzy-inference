@@ -10,6 +10,7 @@ class CNFAntecedentElem:
             allele_is_active = allele == 1
             if allele_is_active:
                 result.append(membership_func.fuzzify(input_))
+        # TODO what if result is empty, or strat will blow up
         return logical_or_strat(result)
 
 
