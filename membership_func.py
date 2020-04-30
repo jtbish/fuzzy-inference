@@ -10,6 +10,7 @@ RANGE_MAX = 1
 
 
 class MembershipFuncABC(metaclass=abc.ABCMeta):
+    """Fuzzy set / membership function."""
     def __init__(self, domain, name):
         self._domain = domain
         self._name = name
@@ -23,11 +24,13 @@ class MembershipFuncABC(metaclass=abc.ABCMeta):
         return self._name
 
     @abc.abstractmethod
-    def fuzzify(self, input_):
+    def fuzzify(self, input_scalar):
         raise NotImplementedError
 
 
 class PiecewiseLinearMembershipFunc(MembershipFuncABC):
+    """Fuzzy set / membership function composed of a series of linear sections,
+    e.g. triangle or trapezoid."""
     def __init__(self, domain, points, name):
         super().__init__(domain, name)
         self._points = points
@@ -37,6 +40,14 @@ class PiecewiseLinearMembershipFunc(MembershipFuncABC):
     @property
     def points(self):
         return self._points
+
+    @property
+    def area(self):
+        return abs(self._polygon.area)
+
+    @property
+    def centroid(self):
+        return self._polygon.centroid
 
     def _create_piecewise_func(self, points):
         lines = self._create_lines_from_points(points)
@@ -83,18 +94,37 @@ class PiecewiseLinearMembershipFunc(MembershipFuncABC):
             pieces.append((expr, cond))
         return pieces
 
-    def fuzzify(self, input_):
-        assert self._domain.min <= input_ <= self._domain.max
+    def fuzzify(self, input_scalar):
+        assert self._domain.min <= input_scalar <= self._domain.max
 
-        equation_to_solve = self._piecewise_func.subs(x, input_)
-        result = solve(equation_to_solve, y)
+        eqn_to_solve = self._piecewise_func.subs(x, input_scalar)
+        result = solve(eqn_to_solve, y)
         result_is_scalar = isinstance(result, list) and len(result) == 1
         assert result_is_scalar
         result = float(result[0])
-        print(f"{input_} -> {result}")
 
         assert RANGE_MIN <= result <= RANGE_MAX
         return result
+
+    def clip(self, truth_val):
+        """Return a new membership function representing clipped version of
+        this membership function."""
+        clip_line = Line((0, truth_val), slope=0)
+        cut_polygons = self._polygon.cut_section(clip_line)
+        assert len(cut_polygons) == 2
+        two_segments_created = None not in cut_polygons
+        if two_segments_created:
+            clipped_polygon = cut_polygons[1]  # lower polygon
+        else:
+            assert cut_polygons.count(None) == 1
+            # get whichever one is not None
+            for item in cut_polygons:
+                if item is not None:
+                    clipped_polygon = item
+                    break
+        return type(self)(domain=self._domain,
+                          points=clipped_polygon.vertices,
+                          name=f"{self._name}_clipped_{truth_val}")
 
 
 def make_triangular_membership_func(domain, base_lhs_x, apex_x, base_rhs_x,

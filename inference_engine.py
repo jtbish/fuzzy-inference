@@ -1,46 +1,36 @@
-import abc
+from logical_ops import logical_or_max, logical_and_min
 
 
-class IInferenceEngine(metaclass=abc.ABCMeta):
-    @abc.abstractmethod
-    def process(self, input_vec):
-        raise NotImplementedError
+class MamdaniEngine:
+    def __init__(self, input_ling_vars, output_ling_var):
+        self._input_ling_vars = input_ling_vars
+        self._output_ling_var = output_ling_var
+        self._logical_or_strat = logical_or_max
+        self._logical_and_strat = logical_and_min
 
+    @property
+    def input_ling_vars(self):
+        return self._input_ling_vars
 
-class FATIEngine:
-    def __init__(self, ling_vars, logical_or_strat, logical_and_strat,
-                 implication_strat, aggregation_strat, rule_base):
-        self._ling_vars = ling_vars
-        self._logical_or_strat = logical_or_strat
-        self._logical_and_strat = logical_and_strat
-        self._implication_strat = implication_strat
-        self._aggregation_strat = aggregation_strat
-        self._rule_base = rule_base
+    @property
+    def output_ling_var(self):
+        return self._output_ling_var
 
-    def process(self, input_vec):
-        rule_antecedent_outputs = \
-            self._collect_rule_antecedent_outputs(input_vec)
-        implication_outputs = \
-            self._perform_implication(
-                    rule_antecedent_outputs)
-        aggregated_consequents = \
-            self._aggregate_consequents(implication_outputs)
-        return self._deffuzify(aggregated_consequents)
+    def process(self, rule_base, input_vec):
+        rule_outputs = []
+        for rule in rule_base:
+            rule_outputs.append(
+                rule.eval(input_vec, self._logical_or_strat,
+                          self._logical_and_strat))
+        return self._defuzzify(rule_outputs)
 
-    def _collect_rule_antecedent_outputs(self, input_vec):
-        rule_antecedent_outputs = []
-        for rule in self._rule_base:
-            rule_antecedent_outputs.append(
-                rule.eval_antecedent(self._ling_vars, input_vec,
-                                     self._logical_or_strat,
-                                     self._logical_and_strat))
-        return rule_antecedent_outputs
-
-    def _perform_implication(self, rule_antecedent_outputs):
-        pass
-
-    def _aggregate_consequents(self, implication_outputs):
-        pass
-
-    def _defuzzify(self, aggregated_consequents):
-        pass
+    def _defuzzify(self, rule_outputs):
+        # don't need to aggregate, just do area weighted avg of centroid x poss
+        numerator = 0.0
+        denominator = 0.0
+        for fuzzy_set in rule_outputs:
+            centroid_x_pos = float(fuzzy_set.centroid.x)
+            numerator += float(fuzzy_set.area) * centroid_x_pos
+            denominator += float(fuzzy_set.area)
+        res = numerator / denominator
+        return res
